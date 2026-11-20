@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>GPS Check</title>
+
+<link
+    href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css"
+    rel="stylesheet"
+/>
+
+<style>
+html,body,#map{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+}
+
+#panel{
+    position:absolute;
+    top:10px;
+    left:10px;
+    z-index:999;
+
+    background:rgba(255,255,255,.95);
+
+    padding:12px;
+
+    border-radius:8px;
+
+    font-family:Arial,sans-serif;
+    font-size:14px;
+
+    max-width:320px;
+
+    box-shadow:0 0 10px rgba(0,0,0,.2);
+}
+
+.ok{
+    color:green;
+    font-weight:bold;
+}
+
+.fail{
+    color:red;
+    font-weight:bold;
+}
+
+button{
+    width:100%;
+    margin-top:8px;
+    padding:8px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div id="panel">
+
+    <h3>GPS 除錯工具</h3>
+
+    <div id="secure"></div>
+    <div id="geo"></div>
+    <div id="permission"></div>
+
+    <hr>
+
+    <div id="status">未開始</div>
+
+    <hr>
+
+    <div id="location">
+        尚無定位資料
+    </div>
+
+    <button onclick="startGPS()">
+        開始定位測試
+    </button>
+
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
+
+<script>
+
+const secureDiv=document.getElementById("secure");
+const geoDiv=document.getElementById("geo");
+const permissionDiv=document.getElementById("permission");
+const statusDiv=document.getElementById("status");
+const locationDiv=document.getElementById("location");
+
+let watchId=null;
+let count=0;
+let marker=null;
+
+secureDiv.innerHTML=
+    `Secure Context：${
+        window.isSecureContext
+        ? '<span class="ok">YES</span>'
+        : '<span class="fail">NO</span>'
+    }`;
+
+geoDiv.innerHTML=
+    `Geolocation API：${
+        navigator.geolocation
+        ? '<span class="ok">YES</span>'
+        : '<span class="fail">NO</span>'
+    }`;
+
+const map=new maplibregl.Map({
+    container:"map",
+    style:"https://tiles.openfreemap.org/styles/liberty",
+    center:[121.5645,25.0330],
+    zoom:14
+});
+
+map.addControl(
+    new maplibregl.NavigationControl()
+);
+
+async function checkPermission(){
+
+    if(!navigator.permissions){
+        permissionDiv.innerHTML=
+            "Permissions API：不支援";
+        return;
+    }
+
+    try{
+
+        const result=
+            await navigator.permissions.query({
+                name:"geolocation"
+            });
+
+        permissionDiv.innerHTML=
+            `定位權限：<b>${result.state}</b>`;
+
+    }catch(err){
+
+        permissionDiv.innerHTML=
+            "定位權限：查詢失敗";
+    }
+}
+
+checkPermission();
+
+function startGPS(){
+
+    statusDiv.innerHTML=
+        '<span class="ok">開始監測 GPS...</span>';
+
+    if(!navigator.geolocation){
+
+        statusDiv.innerHTML=
+            '<span class="fail">瀏覽器不支援 Geolocation</span>';
+
+        return;
+    }
+
+    watchId=
+        navigator.geolocation.watchPosition(
+            onSuccess,
+            onError,
+            {
+                enableHighAccuracy:true,
+                maximumAge:0,
+                timeout:15000
+            }
+        );
+}
+
+function onSuccess(position){
+
+    count++;
+
+    const lat=
+        position.coords.latitude;
+
+    const lng=
+        position.coords.longitude;
+
+    const acc=
+        position.coords.accuracy;
+
+    statusDiv.innerHTML=
+        `<span class="ok">
+        GPS 成功 (${count})
+        </span>`;
+
+    locationDiv.innerHTML=
+        `
+        緯度: ${lat}<br>
+        經度: ${lng}<br>
+        精度: ${acc.toFixed(1)} 公尺<br>
+        更新次數: ${count}
+        `;
+
+    if(!marker){
+
+        marker=
+            new maplibregl.Marker({
+                color:"red"
+            })
+            .setLngLat([lng,lat])
+            .addTo(map);
+
+        map.flyTo({
+            center:[lng,lat],
+            zoom:18
+        });
+
+    }else{
+
+        marker.setLngLat([lng,lat]);
+
+        map.easeTo({
+            center:[lng,lat],
+            duration:500
+        });
+    }
+}
+
+function onError(error){
+
+    statusDiv.innerHTML=
+        `<span class="fail">
+        GPS失敗<br>
+        Code:${error.code}<br>
+        ${error.message}
+        </span>`;
+
+    console.error(error);
+}
+
+</script>
+
+</body>
+</html>

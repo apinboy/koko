@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>OpenFreeMap GPS Test</title>
+
+<link
+    href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css"
+    rel="stylesheet"
+/>
+
+<style>
+html,
+body,
+#map{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+}
+
+#info{
+    position:absolute;
+    top:10px;
+    left:10px;
+
+    z-index:999;
+
+    background:rgba(255,255,255,0.9);
+
+    padding:10px;
+    border-radius:8px;
+
+    font-family:Arial,sans-serif;
+    font-size:14px;
+
+    min-width:220px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div id="info">
+    等待GPS定位...
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
+
+<script>
+
+const info=document.getElementById("info");
+
+const map=new maplibregl.Map({
+    container:"map",
+    style:"https://tiles.openfreemap.org/styles/liberty",
+    center:[121.5645,25.0330],
+    zoom:15
+});
+
+map.addControl(
+    new maplibregl.NavigationControl()
+);
+
+let marker=null;
+let firstFix=true;
+
+function updatePosition(position){
+
+    const lat=position.coords.latitude;
+    const lng=position.coords.longitude;
+    const accuracy=position.coords.accuracy;
+
+    info.innerHTML=`
+        緯度：${lat.toFixed(6)}<br>
+        經度：${lng.toFixed(6)}<br>
+        精度：${accuracy.toFixed(1)} 公尺
+    `;
+
+    // 過濾低品質定位
+    if(accuracy>30){
+        console.log("忽略定位，精度不足:",accuracy);
+        return;
+    }
+
+    if(!marker){
+
+        marker=new maplibregl.Marker({
+            color:"#ff0000"
+        })
+        .setLngLat([lng,lat])
+        .addTo(map);
+
+    }else{
+
+        marker.setLngLat([lng,lat]);
+
+    }
+
+    if(firstFix){
+
+        map.flyTo({
+            center:[lng,lat],
+            zoom:18
+        });
+
+        firstFix=false;
+
+    }else{
+
+        map.easeTo({
+            center:[lng,lat],
+            duration:500
+        });
+
+    }
+}
+
+function handleError(error){
+
+    info.innerHTML=
+        "定位失敗<br>" +
+        error.message;
+
+    console.error(error);
+}
+
+if(!navigator.geolocation){
+
+    info.innerHTML="此瀏覽器不支援 Geolocation";
+
+}else{
+
+    navigator.geolocation.watchPosition(
+        updatePosition,
+        handleError,
+        {
+            enableHighAccuracy:true,
+            maximumAge:0,
+            timeout:15000
+        }
+    );
+
+}
+
+</script>
+
+</body>
+</html>
